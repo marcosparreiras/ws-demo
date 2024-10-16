@@ -1,13 +1,14 @@
 import type { Server } from "http";
 import WebSocket from "ws";
+import { PubSub } from "../events/pub-sub";
 
 export function enableWs(server: Server, path: string) {
   const wss = new WebSocket.Server({ server, path });
   const messages: any[] = [];
 
   wss.on("connection", (ws) => {
-    ws.on("open", () => {
-      console.log("Client connected");
+    wss.clients.forEach((client) => {
+      client.send(JSON.stringify({ message: "new client connected" }));
     });
 
     ws.on("message", (message) => {
@@ -21,13 +22,24 @@ export function enableWs(server: Server, path: string) {
         });
       } catch (error) {
         console.error("Invalid message received:", error);
-        ws.send(JSON.stringify({ error: "Invalid message format" }));
+        ws.send(JSON.stringify({ error: "invalid message format" }));
       }
     });
 
     ws.on("close", () => {
-      console.log("Client disconnected");
+      wss.clients.forEach((client) =>
+        client.send(JSON.stringify({ message: "client disconnected" }))
+      );
     });
+  });
+
+  PubSub.getInstance().subscribe({
+    event: "health",
+    action() {
+      wss.clients.forEach((client) => {
+        client.send(JSON.stringify({ message: "A health check was executed" }));
+      });
+    },
   });
 
   return wss;
